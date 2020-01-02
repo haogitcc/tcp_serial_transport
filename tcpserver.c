@@ -4,16 +4,19 @@
 #define DEVICE_NAME "tmr:///dev/ttymxc1"
 
 #define PORT 8086
-#define MAX_BUFFER_SIZE 256
+#define MAX_BUFFER_SIZE 1024
 
-static int continueRead = 0;
+#define Send2Module 0
+#define Send2Tcp 1
+
+static int isReading = 0;
 
 int server()
 {
 	plog("Server start PORT=%d", PORT);
 	int ret = -1;
 	int server_fd = -1;
-	int client_fd = -1;
+	//int client_fd = -1;
 	server_fd = socket(PF_INET, SOCK_STREAM, 0);
 	if(server_fd < 0) {
 		perror("Server sockect create\n");
@@ -66,7 +69,7 @@ int server()
 	    pthread_attr_t tattr_transport;
 	    pthread_attr_init(&tattr_transport);
 	    pthread_attr_setdetachstate(&tattr_transport, PTHREAD_CREATE_DETACHED);
-	    pthread_create(&t_transport, &tattr_transport, tcp_serial_transport, &client_fd);
+	    pthread_create(&t_transport, &tattr_transport, tcp_serial_transport, NULL);
 		
 	}
 	plog("Server Disconnect");
@@ -75,7 +78,7 @@ int server()
 
 void* tcp_serial_transport(void *arg)
 {
-	plog("tcp_serial_transport");
+	plog("tcp_serial_transport start");
 	int ret = -1;
 	int connected_fd = -1;
 	struct timeval timeout;
@@ -83,16 +86,17 @@ void* tcp_serial_transport(void *arg)
 	char *buffer = (char *)malloc(MAX_BUFFER_SIZE);
 	int count = -1;
 	
-	connected_fd = *((int *)arg);
+	connected_fd = client_fd;
 	if(connected_fd < 0) {
 		perror("Client fd is error\n");
 		close(connected_fd);
 		connected_fd = -1;
 		return NULL;
 	}
+	
 	plog("connected_fd=%d", connected_fd);
 	
-	int serial_fd = -1;
+	//int serial_fd = -1;
 	open_port(&serial_fd, DEVICE);
 
 	FD_ZERO(&rfdset);
@@ -104,11 +108,10 @@ void* tcp_serial_transport(void *arg)
 	timeout.tv_usec = 0L;
 
 	while(1) {
-		plog("read to select ...");
+		//plog("read to select ...");
 		ret = select(connected_fd + 1, &rfdset, NULL, &errorfdset, NULL);
-		if (ret < 1)
+		if (ret < 1 || connected_fd != client_fd)
 		{
-			plog("select error #");
 			perror("select error\n");
 			break;
 		}
@@ -117,11 +120,11 @@ void* tcp_serial_transport(void *arg)
 			plog("select timeout");
 			continue;
 		}
-		plog("select ret = %d",ret);
+		//plog("select ret(fd) = %d",ret);
 
 		if(FD_ISSET(connected_fd, &rfdset) || FD_ISSET(connected_fd, &errorfdset))
 		{
-			plog("connected_fd=%d, is in use ##########----------------->>>>>\n", connected_fd);
+//			plog("connected_fd=%d, is in use ##########----------------->>>>>\n", connected_fd);
 			ret = -1;
 			// get socket error
 			int len = sizeof(ret);
@@ -139,8 +142,8 @@ void* tcp_serial_transport(void *arg)
 			if(count == 0)
 				break;
 
-			plog("--> recv buffer count=%d", count);
-			pbuffer(buffer, count);
+			//plog("--> recv buffer count=%d", count);
+			pbuffer(Send2Module,buffer, count);
 			if(buffer[0] == 0xFF && buffer[1] > 250)
 			{
 				plog("Invalid Length, must be [0 ~ 250]");
@@ -152,42 +155,116 @@ void* tcp_serial_transport(void *arg)
 			{
 				perror("write2port error\n");
 			}
-			plog("write2port done");
+			//plog("write2port done");
 
 // <<<<<<<<<<<<<<<<<<<<<<<<<<<<
-			memset(buffer, 0, MAX_BUFFER_SIZE);
-			//count = read_from_port(serial_fd, buffer, MAX_BUFFER_SIZE);
-			count = read_from_port(serial_fd, buffer, MAX_BUFFER_SIZE);
-			if(count == 0)
+			if(isReading == 0)
 			{
-				//plog("read_from_port 0000");
-				break;
-			}
-			else if(count < 0)
-			{
-				perror("read_from_port error!");
-				continue;
-			}
-			plog("<-- read_from_port buffer count=%d", count);
-			pbuffer(buffer, count);
+				memset(buffer, 0, MAX_BUFFER_SIZE);
+				//count = read_from_port(serial_fd, buffer, MAX_BUFFER_SIZE);
+				count = read_from_port(serial_fd, buffer, MAX_BUFFER_SIZE);
+				if(count == 0)
+				{
+					//plog("read_from_port 0000");
+					break;
+				}
+				else if(count < 0)
+				{
+					perror("read_from_port error!");
+					continue;
+				}
+				//plog("<-- read_from_port buffer count=%d", count);
+				pbuffer(Send2Tcp ,buffer, count);
 
-			count = tcp_sendBytes(connected_fd, buffer, count);
-			if(count < 0)
-			{
-				perror("tcp_sendBytes error\n");
-			}
-			plog("tcp_sendBytes count=%d", count);
+				count = tcp_sendBytes(connected_fd, buffer, count);
+				if(count < 0)
+				{
+					perror("tcp_sendBytes error\n");
+				}
+				//plog("tcp_sendBytes count=%d", count);
 
-			plog("#################");
+			}
+
+			//stop read when get msgpoweroff
+			if(isReading && (buffer[0]== 0x55 && (buffer[4] == 0x02 && buffer[5] == 0x12)))
+			{
+				plog("msg power off");
+				isReading = 0;
+			}
+
+			if(!isReading && (buffer[4]==0x06 && (buffer[5]==0x02|| buffer[5]==0x03))) // 开始读卡
+			{
+				plog("6C Command!\n");
+				pthread_t stbmonitor_pthread = 0;
+				pthread_attr_t tattr;
+				pthread_attr_init(&tattr);
+				pthread_attr_setdetachstate(&tattr, PTHREAD_CREATE_DETACHED);
+				pthread_create(&stbmonitor_pthread, &tattr, serial2tcp_pthread_send, connected_fd);
+				pthread_detach(stbmonitor_pthread);
+				isReading = 1;
+			}
+
+			//plog("#################");
 		}
 	}
 	plog("tcp_serial_transport end");
 	close_port(serial_fd);
 }
 
+void*serial2tcp_pthread_send(int connected_fd)
+{
+	//plog("serial2tcp_pthread_send start \n");
+
+	int ret = -1;
+	int count = -1;
+	char *buffer = (char *)malloc(MAX_BUFFER_SIZE);
+	while(isReading)
+	{
+		if(connected_fd != client_fd) {
+			plog("other client connected!\n");
+			close_port(serial_fd);
+			break;
+		}
+
+		memset(buffer, 0, MAX_BUFFER_SIZE);
+		count = read_from_port(serial_fd, buffer, MAX_BUFFER_SIZE);
+		if(count == 0)
+		{
+			break;
+		}
+		else if(count < 0)
+		{
+			perror("read_from_port error!");
+			continue;
+		}
+		//plog("<-- read_from_port buffer count=%d", count);
+
+		count = tcp_sendBytes(connected_fd, buffer, count);
+		if(count < 0)
+		{
+			perror("tcp_sendBytes error\n");
+		}
+
+		//stop read when get msgpoweroff
+		if(buffer[0]== 0x55 && (buffer[4] == 0x02 && buffer[5] == 0x12))
+		{
+			plog("msg power off and break isReading=%d, status=%p", isReading, buffer[6]);
+			isReading = 0;
+		}
+		
+//		plog("tcp_sendBytes count=%d", count);
+		//pbuffer(Send2Tcp, buffer, count);
+		
+	}
+	plog("stopReading isReading=%d!\n", isReading);
+	free(buffer);
+	return NULL;
+}
+
+
 int tcp_sendBytes(int fd, uint8_t* message, uint32_t length)
 {
-	plog("tcp_sendBytes buffer = %p,%p,%p,%p,%p, %d",message[0],message[1],message[2],message[3],message[4], length);
+	//plog("tcp_sendBytes buffer = %p,%p,%p,%p,%p, %d",message[0],message[1],message[2],message[3],message[4], length);
 	if(fd < -1)
 		return -1;
 	int ret = -1;

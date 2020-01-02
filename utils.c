@@ -61,18 +61,21 @@ void plog(const char *format, ...)
     free(fmt);
 }
 
-void pbuffer(char *buffer, int count)
+void pbuffer(int isSendToSerial, char *buffer, int count)
 {
+	if(isSendToSerial == 0)
+		printf("Send: \n");
+	else
+		printf("Recv: \n");
+	if(count > 10)
+		count = 10;
 	int i=0;
 	while(i < count)
 	{
-		if(i%5 == 0)
-			printf("\n");
-
 		printf("%p, ", buffer[i]);
 		i++;
 	}
-	printf("\n\n");
+	printf("\n");
 
 }
 

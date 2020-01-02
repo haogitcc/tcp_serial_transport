@@ -71,7 +71,7 @@ int set_baudrate(int fd, int baud_rate)
 }
 
 int write2port(int fd, const char *data, int size_data) {
-	plog("--> write2port");
+	//plog("--> write2port");
 	int size = 0;
 	int maxfd = 0;
 	int s = 0;
@@ -98,7 +98,7 @@ int write2port(int fd, const char *data, int size_data) {
 }
 
 int read_from_port(int fd, char *data, int size_data) {
-	plog("<-- read_from_port");
+	//plog("<-- read_from_port");
 	int ret = -1;
 	int count = -1;
 	struct timeval timeout;
@@ -116,13 +116,13 @@ int read_from_port(int fd, char *data, int size_data) {
 	if (ret < 1)
     {
     	plog("s_r209!\n");
-      return -1;
+		return -1;
     }
 
 	if (FD_ISSET(fd, &fdset) == TRUE)      // data ready
 	{
 		count = read(fd, data, size_data);
-		if (ret == -1)
+		if (count == -1)
 		{
 			plog("216!\n");
 			if (ENXIO == errno)
@@ -188,7 +188,7 @@ int stty_raw(int fd) {
 
 int serial_sendBytes(int fd, uint8_t* message, uint32_t length)
 {
-	plog("serial_sendBytes buffer = %p,%p,%p,%p,%p, %d",message[0],message[1],message[2],message[3],message[4], length);
+	//plog("serial_sendBytes buffer = %p,%p,%p,%p,%p, %d",message[0],message[1],message[2],message[3],message[4], length);
 	int ret;
 	do 
 	{
