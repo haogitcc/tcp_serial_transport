@@ -144,11 +144,6 @@ void* tcp_serial_transport(void *arg)
 
 			//plog("--> recv buffer count=%d", count);
 			pbuffer(Send2Module,buffer, count);
-			if(buffer[0] == 0xFF && buffer[1] > 250)
-			{
-				plog("Invalid Length, must be [0 ~ 250]");
-				continue;
-			}
 			
 			count = write2port(serial_fd, buffer, count);
 			if(count < 0)
@@ -163,14 +158,8 @@ void* tcp_serial_transport(void *arg)
 				memset(buffer, 0, MAX_BUFFER_SIZE);
 				//count = read_from_port(serial_fd, buffer, MAX_BUFFER_SIZE);
 				count = read_from_port(serial_fd, buffer, MAX_BUFFER_SIZE);
-				if(count == 0)
+				if(count <= 0)
 				{
-					//plog("read_from_port 0000");
-					break;
-				}
-				else if(count < 0)
-				{
-					perror("read_from_port error!");
 					continue;
 				}
 				//plog("<-- read_from_port buffer count=%d", count);
@@ -228,21 +217,20 @@ void*serial2tcp_pthread_send(int connected_fd)
 
 		memset(buffer, 0, MAX_BUFFER_SIZE);
 		count = read_from_port(serial_fd, buffer, MAX_BUFFER_SIZE);
-		if(count == 0)
+		if(count <= 0)
 		{
-			break;
-		}
-		else if(count < 0)
-		{
-			perror("read_from_port error!");
+			perror("read_from_port error! whilie Reading");
+			if(count == -1)
+				break;
 			continue;
 		}
 		//plog("<-- read_from_port buffer count=%d", count);
+		//pbuffer(Send2Tcp ,buffer, count);
 
 		count = tcp_sendBytes(connected_fd, buffer, count);
 		if(count < 0)
 		{
-			perror("tcp_sendBytes error\n");
+			perror("tcp_sendBytes error while Reading\n");
 		}
 
 		//stop read when get msgpoweroff
@@ -257,6 +245,7 @@ void*serial2tcp_pthread_send(int connected_fd)
 		
 	}
 	plog("stopReading isReading=%d!\n", isReading);
+	isReading = 0;
 	free(buffer);
 	return NULL;
 }

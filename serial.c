@@ -115,7 +115,7 @@ int read_from_port(int fd, char *data, int size_data) {
 	ret = select(maxfd, &fdset, 0, 0, &timeout);     // block until the data arrives
 	if (ret < 1)
     {
-    	plog("s_r209!\n");
+    	perror("read_from_port select error!");
 		return -1;
     }
 
@@ -124,7 +124,7 @@ int read_from_port(int fd, char *data, int size_data) {
 		count = read(fd, data, size_data);
 		if (count == -1)
 		{
-			plog("216!\n");
+			plog("read_from_port read error!");
 			if (ENXIO == errno)
 			{
 				return -1; 
