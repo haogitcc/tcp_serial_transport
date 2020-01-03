@@ -97,7 +97,8 @@ void* tcp_serial_transport(void *arg)
 	plog("connected_fd=%d", connected_fd);
 	
 	//int serial_fd = -1;
-	open_port(&serial_fd, DEVICE);
+	if(serial_fd == -1)
+		open_port(&serial_fd, DEVICE); 
 
 	FD_ZERO(&rfdset);
 	FD_ZERO(&errorfdset);
@@ -110,9 +111,14 @@ void* tcp_serial_transport(void *arg)
 	while(1) {
 		//plog("read to select ...");
 		ret = select(connected_fd + 1, &rfdset, NULL, &errorfdset, NULL);
-		if (ret < 1 || connected_fd != client_fd)
+		if (ret < 1)
 		{
-			perror("select error\n");
+			perror("select error ");
+			break;
+		}
+		if(connected_fd != client_fd)
+		{
+			plog("now other client connected");
 			break;
 		}
 		else if(ret == 0)
@@ -196,8 +202,8 @@ void* tcp_serial_transport(void *arg)
 			//plog("#################");
 		}
 	}
-	plog("tcp_serial_transport end");
-	close_port(serial_fd);
+	plog("tcp_serial_transport end #############");
+	tcpClientClose();
 }
 
 void*serial2tcp_pthread_send(int connected_fd)
@@ -210,8 +216,8 @@ void*serial2tcp_pthread_send(int connected_fd)
 	while(isReading)
 	{
 		if(connected_fd != client_fd) {
-			plog("other client connected!\n");
-			close_port(serial_fd);
+			plog("other client connected! while Reading\n");
+			tcpClientClose();
 			break;
 		}
 
@@ -219,7 +225,7 @@ void*serial2tcp_pthread_send(int connected_fd)
 		count = read_from_port(serial_fd, buffer, MAX_BUFFER_SIZE);
 		if(count <= 0)
 		{
-			perror("read_from_port error! whilie Reading");
+			plog("read_from_port error! whilie Reading");
 			if(count == -1)
 				break;
 			continue;
@@ -244,8 +250,12 @@ void*serial2tcp_pthread_send(int connected_fd)
 		//pbuffer(Send2Tcp, buffer, count);
 		
 	}
-	plog("stopReading isReading=%d!\n", isReading);
-	isReading = 0;
+	if(isReading)
+	{
+		plog("stopReading isReading=%d!\n", isReading);
+		isReading = 0;
+	}
+	plog("stopReading");
 	free(buffer);
 	return NULL;
 }
@@ -272,6 +282,15 @@ int tcp_sendBytes(int fd, uint8_t* message, uint32_t length)
  	 while (length > 0);
 
   	return ret;
+}
+
+void tcpClientClose()
+{
+	if(client_fd > 0)
+	{
+		close(client_fd);
+        client_fd = -1;
+	}
 }
 
 int anetKeepAlive(int fd, int interval)

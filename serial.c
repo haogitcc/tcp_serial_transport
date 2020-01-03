@@ -124,7 +124,7 @@ int read_from_port(int fd, char *data, int size_data) {
 		count = read(fd, data, size_data);
 		if (count == -1)
 		{
-			plog("read_from_port read error!");
+			perror("read_from_port read error!");
 			if (ENXIO == errno)
 			{
 				return -1; 
