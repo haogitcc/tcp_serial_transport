@@ -212,6 +212,7 @@ void*serial2tcp_pthread_send(int connected_fd)
 
 	int ret = -1;
 	int count = -1;
+	int stop = -1;
 	char *buffer = (char *)malloc(MAX_BUFFER_SIZE);
 	while(isReading)
 	{
@@ -237,6 +238,7 @@ void*serial2tcp_pthread_send(int connected_fd)
 		if(count < 0)
 		{
 			perror("tcp_sendBytes error while Reading\n");
+			stop = 2;
 		}
 
 		//stop read when get msgpoweroff
@@ -257,6 +259,24 @@ void*serial2tcp_pthread_send(int connected_fd)
 	}
 	plog("stopReading");
 	free(buffer);
+	if(stop == 2)
+	{
+		buffer = (char *)malloc(MAX_BUFFER_SIZE);
+		buffer[0] = 0x55;
+		buffer[1] = 0x00;
+		buffer[2] = 0x00;
+		buffer[3] = 0x02;
+		buffer[4] = 0x02;
+		buffer[5] = 0x12;
+		buffer[6] = 0x0c;
+		buffer[7] = 0x44;
+		
+		count = write2port(serial_fd, buffer, 8);
+		if(count < 0)
+		{
+			perror("write2port error, while reading");
+		}
+	}
 	return NULL;
 }
 
