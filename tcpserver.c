@@ -1,7 +1,15 @@
 #include "tcpserver.h"
 
+#define MYD 1
+#define M28X 1
+#define Board MYD
+#if Board
 #define DEVICE "/dev/ttymxc1"
 #define DEVICE_NAME "tmr:///dev/ttymxc1"
+#else
+#define DEVICE "/dev/ttySP0"
+#define DEVICE_NAME "tmr:///dev/ttySP0"
+#endif
 
 #define PORT 8086
 #define MAX_BUFFER_SIZE 1024

@@ -1,4 +1,4 @@
-BOARD=MYD
+BOARD=M28X
 ifeq ($(BOARD), MYD)
 # MYD toolchains
 $(warning "Myd BOARD=$(BOARD)")
@@ -13,12 +13,12 @@ endif
 
 CLFAGS= -Wall
 
-tcp_serial_transport:lan2serial.o \
+YBT_reader:lan2serial.o \
 	lan2serial.o \
 	serial.o \
 	tcpserver.o \
 	utils.o
-	$(CC) $(CLFAGS) -o tcp_serial_transport	lan2serial.o \
+	$(CC) $(CLFAGS) -o YBT_reader	lan2serial.o \
 	serial.o \
 	tcpserver.o \
 	utils.o \
@@ -36,5 +36,5 @@ utils.o:utils.c utils.h
 	$(CC) $(CLFAGS) -c utils.c
 
 clean:
-	rm tcp_serial_transport  *.o
+	rm YBT_reader  *.o
 
